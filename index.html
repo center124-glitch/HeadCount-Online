@@ -29,7 +29,7 @@
 <meta name="application-name" content="HeadCount">
 <!--
   ═══════════════════════════════════════════════════════════════════════════
-  HeadCount Online v3  (HeadCount_Online_v3.html)
+  HeadCount Online v4  (HeadCount_Online_v4.html)
   รายงานยอดลูกค้าเข้า-ออก ศูนย์การค้าซีคอนบางแค — ฉบับออนไลน์ (อ่านอย่างเดียว)
 
   PROJECT (สรุปย่อ — ฉบับเต็มอยู่ใน PROJECT.md)
@@ -43,6 +43,8 @@
         Auto-Enter 3 วินาที · พักหน้าจออัตโนมัติเมื่อไม่ใช้งาน 5 นาที (ซ่อนข้อมูล)
   • v3: การ์ดสรุปยอดหลากสี · ปุ่มสลับโหมดสว่าง/มืด (จำในเครื่อง, ค่าเริ่มต้นตามระบบ)
         รายงาน A4 / Excel ยังเป็นพื้นสว่างเสมอ (ใช้พิมพ์)
+  • v4: ค่าเริ่มต้น "ทั้งวัน 24 ชม." = สูตรเดียวกับแอปหลัก (ยอดเข้า/ออก/คงเหลือ = รวมทุกชั่วโมง 00.00–24.00)
+        ชื่อการ์ด "คงเหลือในศูนย์ (NET)" แสดงเลขแบบเดียวกับแอปหลัก · ตรวจเทียบ API แอปหลักแล้วตรงทุกประตู-ทุกชั่วโมง
   ═══════════════════════════════════════════════════════════════════════════
 -->
 
@@ -367,8 +369,8 @@
       <button id="dLatest" class="btn">ล่าสุด</button>
     </div>
     <div class="seg" id="winSeg" role="group" aria-label="ช่วงเวลา">
-      <button data-win="op">06.00–24.00</button>
-      <button data-win="all">ทั้งวัน 24 ชม.</button>
+      <button data-win="all" title="00.00–24.00 น. — ยอดเดียวกับแอปหลัก">ทั้งวัน 24 ชม.</button>
+      <button data-win="op" title="ช่วงเดียวกับรายงาน Export ของแอปหลัก">06.00–24.00</button>
     </div>
     <div id="floorChips" class="flex flex-wrap gap-1 min-w-0"></div>
   </div>
@@ -484,7 +486,7 @@
 /* ════════════════════════════════════════════════════════════════════════
    CONFIG
    ════════════════════════════════════════════════════════════════════════ */
-const APP_VERSION = 'v3';
+const APP_VERSION = 'v4';
 const BACKEND_VERSION = 'v1';                 // must match VERSION in Code_HeadCount_Online_v1.gs
 // ใส่ URL ของ Web app ที่นี่เพื่อให้ทุกคนที่เปิดไฟล์นี้เชื่อมต่อได้ทันที (ว่าง = ให้ผู้ใช้กรอกเอง)
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycby38lLd4L1DrLdyIO45cgW2K6b-i3Bqt-8DEgYhFK592UrATudj3EWTxrnVtz0fo9Aq/exec';
@@ -518,7 +520,7 @@ const S = {
   loLoaded: null, hiLoaded: null,   // date span already fetched
   date: null,          // selected day 'YYYY-MM-DD'
   followLatest: true,  // keep jumping to the newest day when the file grows
-  win: 'op', floor: 'all', tab: 'dash', hrMode: 'in', rankBy: 'in',
+  win: 'all', floor: 'all', tab: 'dash', hrMode: 'in', rankBy: 'in',   // 'all' = same totals as the main app
   exSel: new Set(),    // door indexes chosen for export
   charts: {}, timer: null, busy: false,
 };
@@ -937,7 +939,7 @@ function renderDash() {
   const cards = [
     { cls: 'k-in', ico: 'in', l: 'ยอดลูกค้าเข้า', v: fmt(a.tin), s: delta(a.tin, p && p.tin) },
     { cls: 'k-out', ico: 'out', l: 'ยอดลูกค้าออก', v: fmt(a.tout), s: delta(a.tout, p && p.tout) },
-    { cls: 'k-net', ico: 'net', l: 'ส่วนต่าง เข้า − ออก', v: (net > 0 ? '+' : '') + fmt(net), s: `<span>${a.tin ? fmtPct(pct(net, a.tin)) + ' ของยอดเข้า' : '-'}</span>` },
+    { cls: 'k-net', ico: 'net', l: 'คงเหลือในศูนย์ (NET)', v: fmt(net), s: `<span>ยอดเข้า − ยอดออก${a.tin ? ' · ' + fmtPct(pct(net, a.tin)) + ' ของยอดเข้า' : ''}</span>` },
     { cls: 'k-peak', ico: 'clock', l: 'ชั่วโมงที่เข้ามากที่สุด', v: peakV > 0 ? hourSpan(peakH).replace(' น.', '') : '-', s: peakV > 0 ? `<span class="k-chip">${fmt(peakV)} คน</span><span>${fmtPct(pct(peakV, a.tin))} ของวัน</span>` : '', small: true },
     { cls: 'k-door', ico: 'door', l: 'ประตูที่เข้ามากที่สุด', v: top && top.in > 0 ? top.door.name.replace(/^ประตู\s*/, '') : '-', s: top && top.in > 0 ? `<span class="k-chip">${fmt(top.in)} คน</span><span>${fmtPct(pct(top.in, a.tin))} ของยอดเข้า</span>` : '', small: true },
   ];
@@ -1096,7 +1098,7 @@ function renderMatrix() {
   const sign = (x) => (mode === 'net' && x > 0 ? '+' : '') + fmt(x);
   $('#matrix').innerHTML = `
     <thead><tr><th class="door">ประตู</th>${hours.map((h) => `<th title="${hourSpan(h)}">${hourEnd(h)}</th>`).join('')}<th>รวม</th></tr></thead>
-    <tbody>${rows.map((r, i) => `<tr><td class="door" title="${esc(r.d.name)}">${esc(r.d.name)}</td>${r.v.map((x) => x == null ? '<td class="missing">–</td>' : `<td style="${shade(x)}">${sign(x)}</td>`).join('')}<td style="font-weight:700;background:var(--soft)">${sign(rowTot[i])}</td></tr>`).join('')}</tbody>
+    <tbody>${rows.map((r, i) => `<tr><td class="door" title="${esc(r.d.name)}">${esc(r.d.name)}</td>${r.v.map((x) => x == null ? '<td class="missing" title="ยังไม่ถึงชั่วโมงนี้">–</td>' : x === 0 ? '<td class="missing" title="0">–</td>' : `<td style="${shade(x)}">${sign(x)}</td>`).join('')}<td style="font-weight:700;background:var(--soft)">${sign(rowTot[i])}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td class="door">รวมทุกประตู</td>${colTot.map((x) => `<td>${sign(x)}</td>`).join('')}<td>${sign(colTot.reduce((s, x) => s + x, 0))}</td></tr></tfoot>`;
 }
 
@@ -1309,7 +1311,7 @@ async function openReport() {
   const partial = !multi && !isComplete(r[0]);
   const kpis = [
     ['ยอดลูกค้าเข้า', fmt(tin), '#E8742B'], ['ยอดลูกค้าออก', fmt(tout), '#6E2A12'],
-    ['ส่วนต่าง เข้า − ออก', (tin - tout > 0 ? '+' : '') + fmt(tin - tout), '#2B1D14'],
+    ['คงเหลือในศูนย์ (NET)', fmt(tin - tout), '#2B1D14'],
     multi ? [fullDays.length < daily.length ? 'เฉลี่ยเข้าต่อวัน (วันที่ครบ)' : 'เฉลี่ยเข้าต่อวัน', avgIn == null ? '-' : fmt(avgIn), '#2B1D14'] : ['ชั่วโมงพีค', pv > 0 ? hourSpan(ph) : '-', '#2B1D14'],
     ['จำนวนประตู', `${doors.length} จุด`, '#2B1D14'],
   ];
